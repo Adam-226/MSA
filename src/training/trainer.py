@@ -1,0 +1,362 @@
+"""
+多模态情感分析模型训练模块
+"""
+import os
+import sys
+import time
+import json
+import logging
+from tqdm import tqdm
+from pathlib import Path
+from typing import Dict, List, Tuple, Any, Optional
+
+import torch
+import torch.nn as nn
+import torch.optim as optim
+from torch.utils.data import DataLoader
+from torch.optim.lr_scheduler import LinearLR, CosineAnnealingLR, ReduceLROnPlateau
+import numpy as np
+from sklearn.metrics import accuracy_score, f1_score, confusion_matrix
+
+# 添加src目录到系统路径
+sys.path.append(str(Path(__file__).parent.parent.parent))
+
+from src.models.model import FusionModel
+from src.preprocess.dataset import get_meld_dataloaders
+from src.training.config import set_seed, load_config, get_device, get_class_weights, create_experiment_dir
+
+# 配置日志
+os.makedirs('logs', exist_ok=True)
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.StreamHandler(),
+        logging.FileHandler('logs/training.log')
+    ]
+)
+logger = logging.getLogger(__name__)
+
+
+def train_epoch(
+    model: nn.Module,
+    train_loader: DataLoader,
+    optimizer: optim.Optimizer,
+    scheduler: Any,
+    device: torch.device,
+    clip_grad_val: float = 1.0
+) -> Dict[str, float]:
+    """训练一个epoch"""
+    
+    model.train()
+    
+    total_loss = 0.0
+    total_samples = 0
+    all_preds = []
+    all_labels = []
+    
+    pbar = tqdm(train_loader, desc="Training")
+    for batch in pbar:
+        # 获取数据
+        text = batch['text'].to(device)
+        audio = batch['audio'].to(device)
+        video = batch['video'].to(device)
+        labels = batch['emotion'].to(device)
+        
+        batch_size = text.size(0)
+        
+        # 前向传播
+        output = model(text, audio, video)
+        
+        # 计算损失
+        losses = model.calculate_losses(output, labels)
+        loss = losses['total_loss']
+        
+        # 反向传播
+        optimizer.zero_grad()
+        loss.backward()
+        
+        # 梯度裁剪
+        if clip_grad_val > 0:
+            torch.nn.utils.clip_grad_norm_(model.parameters(), clip_grad_val)
+        
+        # 更新参数
+        optimizer.step()
+        
+        # 更新学习率
+        if scheduler is not None and isinstance(scheduler, (LinearLR, CosineAnnealingLR)):
+            scheduler.step()
+        
+        # 累积损失和样本数
+        total_loss += loss.item() * batch_size
+        total_samples += batch_size
+        
+        # 获取预测结果
+        preds = torch.argmax(output['logits'], dim=1).cpu().numpy()
+        labels_np = labels.cpu().numpy()
+        
+        all_preds.extend(preds)
+        all_labels.extend(labels_np)
+        
+        # 更新进度条
+        pbar.set_postfix(loss=loss.item())
+    
+    # 计算指标
+    acc = accuracy_score(all_labels, all_preds)
+    f1_macro = f1_score(all_labels, all_preds, average='macro')
+    f1_weighted = f1_score(all_labels, all_preds, average='weighted')
+    
+    # 返回指标
+    metrics = {
+        'loss': total_loss / total_samples,
+        'acc': acc,
+        'f1_macro': f1_macro,
+        'f1_weighted': f1_weighted
+    }
+    
+    return metrics
+
+
+def evaluate(
+    model: nn.Module,
+    data_loader: DataLoader,
+    device: torch.device
+) -> Dict[str, float]:
+    """评估模型"""
+    
+    model.eval()
+    
+    total_loss = 0.0
+    total_samples = 0
+    all_preds = []
+    all_labels = []
+    
+    with torch.no_grad():
+        for batch in tqdm(data_loader, desc="Evaluating"):
+            # 获取数据
+            text = batch['text'].to(device)
+            audio = batch['audio'].to(device)
+            video = batch['video'].to(device)
+            labels = batch['emotion'].to(device)
+            
+            batch_size = text.size(0)
+            
+            # 前向传播
+            output = model(text, audio, video)
+            
+            # 计算损失
+            losses = model.calculate_losses(output, labels)
+            loss = losses['total_loss']
+            
+            # 累积损失和样本数
+            total_loss += loss.item() * batch_size
+            total_samples += batch_size
+            
+            # 获取预测结果
+            preds = torch.argmax(output['logits'], dim=1).cpu().numpy()
+            labels_np = labels.cpu().numpy()
+            
+            all_preds.extend(preds)
+            all_labels.extend(labels_np)
+    
+    # 计算指标
+    acc = accuracy_score(all_labels, all_preds)
+    f1_macro = f1_score(all_labels, all_preds, average='macro')
+    f1_weighted = f1_score(all_labels, all_preds, average='weighted')
+    
+    # 计算混淆矩阵
+    cm = confusion_matrix(all_labels, all_preds)
+    
+    # 返回指标
+    metrics = {
+        'loss': total_loss / total_samples,
+        'acc': acc,
+        'f1_macro': f1_macro,
+        'f1_weighted': f1_weighted,
+        'confusion_matrix': cm.tolist()
+    }
+    
+    return metrics
+
+
+def train_model(config_path: str) -> Tuple[nn.Module, Dict[str, List[float]]]:
+    """训练模型"""
+    
+    # 加载配置
+    config = load_config(config_path)
+    
+    # 设置随机种子
+    set_seed(config['random_seed'])
+    
+    # 获取设备
+    device = get_device()
+    logger.info(f"使用设备: {device}")
+    
+    # 创建实验目录
+    exp_dir = create_experiment_dir(config)
+    logger.info(f"实验目录: {exp_dir}")
+    
+    # 获取数据加载器
+    dataloaders = get_meld_dataloaders(config)
+    train_loader = dataloaders['train']
+    dev_loader = dataloaders['dev']
+    test_loader = dataloaders['test']
+    
+    # 创建模型
+    model = FusionModel(config)
+    model.to(device)
+    
+    # 计算类别权重
+    if config['training']['class_weights']:
+        class_weights = get_class_weights(config['data']['dataset_path'])
+        class_weights = class_weights.to(device)
+        logger.info(f"类别权重: {class_weights}")
+    else:
+        class_weights = None
+    
+    # 创建优化器
+    optimizer = optim.AdamW(
+        model.parameters(),
+        lr=config['training']['lr'],
+        weight_decay=config['training']['weight_decay']
+    )
+    
+    # 创建学习率调度器
+    num_training_steps = len(train_loader) * config['training']['epochs']
+    warmup_steps = int(num_training_steps * config['training']['warmup_ratio'])
+    
+    if config['training']['scheduler'] == 'linear':
+        scheduler = LinearLR(
+            optimizer,
+            start_factor=1.0,
+            end_factor=0.1,
+            total_iters=num_training_steps
+        )
+    elif config['training']['scheduler'] == 'cosine':
+        scheduler = CosineAnnealingLR(
+            optimizer,
+            T_max=num_training_steps - warmup_steps
+        )
+    elif config['training']['scheduler'] == 'plateau':
+        scheduler = ReduceLROnPlateau(
+            optimizer,
+            mode='max',
+            factor=0.5,
+            patience=2
+        )
+    else:
+        scheduler = None
+    
+    # 初始化训练历史
+    history = {
+        'train_loss': [],
+        'train_acc': [],
+        'train_f1_macro': [],
+        'train_f1_weighted': [],
+        'val_loss': [],
+        'val_acc': [],
+        'val_f1_macro': [],
+        'val_f1_weighted': []
+    }
+    
+    # 初始化最佳验证F1分数
+    best_val_f1 = 0.0
+    
+    # 早停计数器
+    early_stop_count = 0
+    
+    # 训练循环
+    for epoch in range(config['training']['epochs']):
+        logger.info(f"Epoch {epoch+1}/{config['training']['epochs']}")
+        
+        # 训练一个epoch
+        train_metrics = train_epoch(
+            model=model,
+            train_loader=train_loader,
+            optimizer=optimizer,
+            scheduler=scheduler,
+            device=device,
+            clip_grad_val=config['training']['gradient_clip_val']
+        )
+        
+        # 在验证集上评估
+        val_metrics = evaluate(
+            model=model,
+            data_loader=dev_loader,
+            device=device
+        )
+        
+        # 更新学习率（如果使用ReduceLROnPlateau）
+        if scheduler is not None and isinstance(scheduler, ReduceLROnPlateau):
+            scheduler.step(val_metrics['f1_weighted'])
+        
+        # 记录指标
+        history['train_loss'].append(train_metrics['loss'])
+        history['train_acc'].append(train_metrics['acc'])
+        history['train_f1_macro'].append(train_metrics['f1_macro'])
+        history['train_f1_weighted'].append(train_metrics['f1_weighted'])
+        
+        history['val_loss'].append(val_metrics['loss'])
+        history['val_acc'].append(val_metrics['acc'])
+        history['val_f1_macro'].append(val_metrics['f1_macro'])
+        history['val_f1_weighted'].append(val_metrics['f1_weighted'])
+        
+        # 打印指标
+        logger.info(f"Train Loss: {train_metrics['loss']:.4f}, Acc: {train_metrics['acc']:.4f}, "
+                    f"F1 Macro: {train_metrics['f1_macro']:.4f}, F1 Weighted: {train_metrics['f1_weighted']:.4f}")
+        logger.info(f"Val Loss: {val_metrics['loss']:.4f}, Acc: {val_metrics['acc']:.4f}, "
+                    f"F1 Macro: {val_metrics['f1_macro']:.4f}, F1 Weighted: {val_metrics['f1_weighted']:.4f}")
+        
+        # 保存最佳模型
+        if val_metrics['f1_weighted'] > best_val_f1:
+            best_val_f1 = val_metrics['f1_weighted']
+            
+            # 保存模型
+            best_model_path = os.path.join(exp_dir, 'best_model.pth')
+            torch.save({
+                'epoch': epoch,
+                'model_state_dict': model.state_dict(),
+                'optimizer_state_dict': optimizer.state_dict(),
+                'val_metrics': val_metrics,
+                'config': config
+            }, best_model_path)
+            
+            logger.info(f"保存最佳模型，F1 Weighted: {best_val_f1:.4f}")
+            
+            # 重置早停计数器
+            early_stop_count = 0
+        else:
+            # 增加早停计数器
+            early_stop_count += 1
+            
+            # 如果连续多个epoch没有提高，则早停
+            if early_stop_count >= config['training']['early_stopping_patience']:
+                logger.info(f"早停，{config['training']['early_stopping_patience']} epochs未提高验证F1")
+                break
+    
+    # 加载最佳模型
+    best_model_path = os.path.join(exp_dir, 'best_model.pth')
+    checkpoint = torch.load(best_model_path, weights_only=False)
+    model.load_state_dict(checkpoint['model_state_dict'])
+    
+    # 在测试集上评估
+    test_metrics = evaluate(
+        model=model,
+        data_loader=test_loader,
+        device=device
+    )
+    
+    # 保存测试结果
+    test_results_path = os.path.join(exp_dir, 'test_results.json')
+    with open(test_results_path, 'w') as f:
+        json.dump(test_metrics, f, indent=4)
+    
+    logger.info(f"测试集指标: Acc: {test_metrics['acc']:.4f}, "
+                f"F1 Macro: {test_metrics['f1_macro']:.4f}, F1 Weighted: {test_metrics['f1_weighted']:.4f}")
+    
+    # 保存训练历史
+    history_path = os.path.join(exp_dir, 'history.json')
+    with open(history_path, 'w') as f:
+        json.dump(history, f, indent=4)
+    
+    return model, history 

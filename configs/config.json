@@ -1,0 +1,57 @@
+{
+    "model_name": "FusionModel",
+    "random_seed": 42,
+    "data": {
+        "dataset_path": "data/MELD.Raw",
+        "cache_path": "data/processed",
+        "text_feature": "roberta",
+        "audio_feature": "wav2vec2",
+        "video_feature": "dino_vit",
+        "batch_size": 32,
+        "num_workers": 4,
+        "max_seq_len": 128
+    },
+    "model": {
+        "text": {
+            "pretrained_model": "roberta-base",
+            "feature_dim": 768,
+            "dropout": 0.2,
+            "freeze_bert": false
+        },
+        "audio": {
+            "pretrained_model": "facebook/wav2vec2-base-960h",
+            "feature_dim": 768,
+            "dropout": 0.2,
+            "freeze_encoder": false
+        },
+        "video": {
+            "pretrained_model": "facebook/dino-vitb16",
+            "feature_dim": 768,
+            "dropout": 0.2,
+            "freeze_encoder": false
+        },
+        "fusion": {
+            "hidden_dim": 256,
+            "dropout": 0.3,
+            "n_layers": 1,
+            "n_heads": 1
+        },
+        "output": {
+            "num_classes": 7
+        }
+    },
+    "training": {
+        "epochs": 35,
+        "lr": 5e-5,
+        "weight_decay": 1e-3,
+        "scheduler": "cosine",
+        "warmup_ratio": 0.1,
+        "early_stopping_patience": 10,
+        "gradient_clip_val": 1.0,
+        "class_weights": true
+    },
+    "paths": {
+        "checkpoint_dir": "checkpoints",
+        "log_dir": "logs"
+    }
+} 
