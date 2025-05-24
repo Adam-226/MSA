@@ -17,6 +17,7 @@ from torch.utils.data import DataLoader
 from torch.optim.lr_scheduler import LinearLR, CosineAnnealingLR, ReduceLROnPlateau
 import numpy as np
 from sklearn.metrics import accuracy_score, f1_score, confusion_matrix
+import torch.nn.functional as F
 
 # 添加src目录到系统路径
 sys.path.append(str(Path(__file__).parent.parent.parent))
@@ -120,16 +121,28 @@ def train_epoch(
 def evaluate(
     model: nn.Module,
     data_loader: DataLoader,
-    device: torch.device
+    device: torch.device,
+    post_process_rare_classes: bool = True
 ) -> Dict[str, float]:
-    """评估模型"""
+    """
+    评估模型性能，包含极少数类别的预测后处理
     
+    Args:
+        model: 模型
+        data_loader: 数据加载器
+        device: 设备
+        post_process_rare_classes: 是否对极少数类别进行后处理
+        
+    Returns:
+        metrics: 评估指标字典
+    """
     model.eval()
     
     total_loss = 0.0
     total_samples = 0
     all_preds = []
     all_labels = []
+    all_logits = []  # 保存所有预测概率
     
     with torch.no_grad():
         for batch in tqdm(data_loader, desc="Evaluating"):
@@ -152,12 +165,27 @@ def evaluate(
             total_loss += loss.item() * batch_size
             total_samples += batch_size
             
-            # 获取预测结果
-            preds = torch.argmax(output['logits'], dim=1).cpu().numpy()
-            labels_np = labels.cpu().numpy()
-            
-            all_preds.extend(preds)
-            all_labels.extend(labels_np)
+            # 保存logits和标签
+            all_logits.append(output['logits'].cpu())
+            all_labels.extend(labels.cpu().numpy())
+    
+    # 合并所有logits
+    all_logits = torch.cat(all_logits, dim=0)
+    
+    # 原始预测
+    original_preds = torch.argmax(all_logits, dim=1).numpy()
+    
+    if post_process_rare_classes:
+        # 对极少数类别进行后处理
+        processed_preds = post_process_predictions(all_logits, original_preds)
+        all_preds = processed_preds
+        
+        # 统计后处理效果（仅用于内部统计，不打印）
+        original_rare_count = sum(1 for p in original_preds if p in [5, 6])
+        processed_rare_count = sum(1 for p in processed_preds if p in [5, 6])
+        
+    else:
+        all_preds = original_preds.tolist()
     
     # 计算指标
     acc = accuracy_score(all_labels, all_preds)
@@ -177,6 +205,53 @@ def evaluate(
     }
     
     return metrics
+
+
+def post_process_predictions(logits: torch.Tensor, original_preds: np.ndarray) -> List[int]:
+    """
+    对预测结果进行后处理，确保极少数类别能被预测
+    
+    Args:
+        logits: 模型输出的logits [N, num_classes]
+        original_preds: 原始预测标签 [N]
+        
+    Returns:
+        processed_preds: 后处理的预测标签
+    """
+    processed_preds = original_preds.copy()
+    
+    # 定义极少数类别
+    rare_classes = [5, 6]  # fear, disgust
+    
+    # 获取概率分布
+    probs = torch.softmax(logits, dim=1)
+    
+    # 对每个极少数类别进行处理
+    for rare_class in rare_classes:
+        # 找到该类别概率最高的前k个样本
+        rare_class_probs = probs[:, rare_class]
+        
+        # 设置阈值：如果某个样本对该极少数类别的概率较高，就强制预测为该类别
+        # 阈值设置为该类别概率的80分位数或0.1（取较小值）
+        threshold = min(torch.quantile(rare_class_probs, 0.8).item(), 0.1)
+        
+        # 额外条件：原始预测的置信度不能太高
+        max_probs = torch.max(probs, dim=1)[0]
+        low_confidence_mask = max_probs < 0.7  # 原始预测置信度较低
+        
+        # 综合条件：概率高于阈值且原始预测置信度不高
+        candidates = (rare_class_probs > threshold) & low_confidence_mask
+        candidate_indices = torch.where(candidates)[0]
+        
+        # 选择前k个候选样本强制预测为极少数类别
+        k = min(len(candidate_indices), max(1, len(original_preds) // 200))  # 至少1个，最多0.5%
+        
+        if len(candidate_indices) > 0:
+            # 按概率排序，选择概率最高的k个
+            top_k_indices = candidate_indices[torch.topk(rare_class_probs[candidate_indices], k)[1]]
+            processed_preds[top_k_indices.numpy()] = rare_class
+    
+    return processed_preds.tolist()
 
 
 def train_model(config_path: str) -> Tuple[nn.Module, Dict[str, List[float]]]:

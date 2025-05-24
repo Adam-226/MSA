@@ -72,7 +72,7 @@ def get_device(gpu_id: Optional[int] = None) -> torch.device:
 
 def get_class_weights(dataset_path: str, split: str = 'train') -> torch.Tensor:
     """
-    计算类别权重，用于处理类别不平衡
+    计算类别权重，用于处理类别不平衡，特别加强极少数类别
     
     Args:
         dataset_path: 数据集路径
@@ -82,6 +82,7 @@ def get_class_weights(dataset_path: str, split: str = 'train') -> torch.Tensor:
         class_weights: 类别权重张量
     """
     import pandas as pd
+    import numpy as np
     
     # 读取CSV文件
     csv_path = os.path.join(dataset_path, f"{split}_sent_emo.csv")
@@ -101,18 +102,43 @@ def get_class_weights(dataset_path: str, split: str = 'train') -> torch.Tensor:
         'disgust': 6
     }
     
-    # 计算类别权重
+    # 计算增强的类别权重
     total_samples = len(df)
     n_classes = len(emotion_mapping)
     class_weights = torch.zeros(n_classes)
     
+    # 获取所有类别的样本数
+    counts = []
     for emotion, idx in emotion_mapping.items():
-        count = emotion_counts.get(emotion, 0)
-        if count > 0:
-            weight = total_samples / (n_classes * count)
+        count = emotion_counts.get(emotion, 1)  # 避免除零
+        counts.append(count)
+    
+    max_count = max(counts)
+    
+    for emotion, idx in emotion_mapping.items():
+        count = emotion_counts.get(emotion, 1)
+        
+        # 基础权重：反比例
+        base_weight = max_count / count
+        
+        # 对极少数类别进行特别加强
+        if count < 100:  # Fear和Disgust等极少数类别
+            # 使用对数缩放 + 额外惩罚因子
+            boost_factor = np.log(100 / count) * 3  # 大幅提升权重
+            enhanced_weight = base_weight * (1 + boost_factor)
+        elif count < 300:  # 较少类别如Sadness
+            boost_factor = np.log(300 / count) * 1.5
+            enhanced_weight = base_weight * (1 + boost_factor)
         else:
-            weight = 1.0
-        class_weights[idx] = weight
+            enhanced_weight = base_weight
+        
+        # 设置最小权重阈值，确保主要类别不会权重过小
+        enhanced_weight = max(enhanced_weight, 0.5)
+        
+        class_weights[idx] = enhanced_weight
+    
+    print(f"增强类别权重: {class_weights}")
+    print(f"类别样本分布: {emotion_counts}")
     
     return class_weights
 

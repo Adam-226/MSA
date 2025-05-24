@@ -13,19 +13,43 @@ from src.models.video_model import VideoEncoder
 
 
 class FocalLoss(nn.Module):
-    """改进的Focal Loss"""
+    """改进的Focal Loss，特别针对极少数类别优化"""
     
-    def __init__(self, alpha=None, gamma=2, reduction='mean'):
+    def __init__(self, alpha=None, gamma=2, reduction='mean', rare_class_boost=True):
         super(FocalLoss, self).__init__()
         self.alpha = alpha
         self.gamma = gamma
         self.reduction = reduction
+        self.rare_class_boost = rare_class_boost
+        
+        # 定义极少数类别的索引 (fear=5, disgust=6)
+        self.rare_classes = [5, 6]
         
     def forward(self, inputs, targets):
         ce_loss = F.cross_entropy(inputs, targets, reduction='none')
         pt = torch.exp(-ce_loss)
+        
+        # 基础focal loss
         focal_loss = (1 - pt) ** self.gamma * ce_loss
         
+        # 对极少数类别进行特殊增强
+        if self.rare_class_boost:
+            # 创建增强掩码
+            rare_mask = torch.zeros_like(targets, dtype=torch.float)
+            for rare_idx in self.rare_classes:
+                rare_mask += (targets == rare_idx).float()
+            
+            # 对极少数类别使用更大的gamma值和额外权重
+            enhanced_gamma = self.gamma * 1.5  # 增加关注难样本
+            enhanced_focal = (1 - pt) ** enhanced_gamma * ce_loss
+            
+            # 额外的类别特定权重
+            rare_boost = 3.0  # 极少数类别额外3倍权重
+            
+            # 混合损失：普通样本使用基础focal loss，极少数类别使用增强版本
+            focal_loss = (1 - rare_mask) * focal_loss + rare_mask * enhanced_focal * rare_boost
+        
+        # 应用alpha权重
         if self.alpha is not None:
             if isinstance(self.alpha, (float, int)):
                 alpha_t = self.alpha
@@ -154,8 +178,10 @@ class FusionModel(nn.Module):
             nn.Softmax(dim=1)
         )
         
-        # Focal Loss
-        self.focal_loss = FocalLoss(gamma=2)
+        # Focal Loss - 使用配置中的参数
+        focal_gamma = config.get('training', {}).get('focal_loss_gamma', 2.0)
+        rare_boost = config.get('training', {}).get('rare_class_boost', True)
+        self.focal_loss = FocalLoss(gamma=focal_gamma, rare_class_boost=rare_boost)
         
     def forward(self, text_features, audio_features, video_features):
         """前向传播"""
