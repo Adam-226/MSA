@@ -1,0 +1,94 @@
+{
+    "model_name": "EndToEndEmotionModel",
+    "random_seed": 42,
+    "data": {
+        "dataset_path": "data/MELD.Raw",
+        "cache_path": "data/processed_emotion",
+        "text_feature": "raw_text",
+        "audio_feature": "wav2vec2",
+        "video_feature": "dino_vit",
+        "batch_size": 16,
+        "num_workers": 4,
+        "max_seq_len": 128,
+        "enabled_modalities": ["text", "audio"],
+        "num_speakers": 300,
+        "use_raw_text": true
+    },
+    "data_augmentation": {
+        "enable": true,
+        "gaussian_noise_std": 0.008,
+        "feature_dropout_rate": 0.08,
+        "mixup_alpha": 0.15,
+        "cutoff_prob": 0.1,
+        "text_augmentation": {
+            "enable": true,
+            "synonym_replacement": 0.05,
+            "random_deletion": 0.05,
+            "random_swap": 0.05
+        }
+    },
+    "model_architecture": {
+        "use_deep_encoder": true,
+        "use_contrastive_loss": true,
+        "contrastive_weight": 0.08,
+        "use_dialogue_context": false,
+        "use_speaker_info": false,
+        "use_attention_fusion": true
+    },
+    "model": {
+        "text": {
+            "pretrained_model": "j-hartmann/emotion-english-distilroberta-base",
+            "feature_dim": 768,
+            "dropout": 0.08,
+            "freeze_bert": false,
+            "learning_rate_multiplier": 0.3
+        },
+        "audio": {
+            "pretrained_model": "facebook/wav2vec2-base-960h",
+            "feature_dim": 768,
+            "dropout": 0.08,
+            "freeze_encoder": false,
+            "learning_rate_multiplier": 0.5
+        },
+        "video": {
+            "pretrained_model": "facebook/dino-vitb16",
+            "feature_dim": 768,
+            "dropout": 0.08,
+            "freeze_encoder": false
+        },
+        "fusion": {
+            "hidden_dim": 640,
+            "dropout": 0.12,
+            "num_layers": 3,
+            "activation": "gelu",
+            "use_attention": true
+        },
+        "output": {
+            "num_classes": 7
+        }
+    },
+    "training": {
+        "epochs": 60,
+        "lr": 2e-5,
+        "text_lr": 6e-6,
+        "audio_lr": 1e-5,
+        "weight_decay": 0.015,
+        "gradient_clip_val": 1.0,
+        "scheduler": "cosine_with_restarts",
+        "warmup_ratio": 0.1,
+        "class_weights": true,
+        "focal_loss_gamma": 2.5,
+        "rare_class_boost": true,
+        "label_smoothing": 0.08,
+        "contrastive_temperature": 0.12,
+        "accumulation_steps": 2,
+        "early_stopping_patience": 12,
+        "ema_decay": 0.999,
+        "swa": true,
+        "lookahead": true
+    },
+    "paths": {
+        "checkpoint_dir": "checkpoints",
+        "log_dir": "logs"
+    }
+} 

@@ -1,0 +1,73 @@
+{
+    "model_name": "BiModalFusionModel",
+    "random_seed": 999,
+    "data": {
+        "dataset_path": "data/MELD.Raw",
+        "cache_path": "data/processed",
+        "text_feature": "roberta",
+        "audio_feature": "wav2vec2",
+        "video_feature": "dino_vit",
+        "batch_size": 24,
+        "num_workers": 4,
+        "max_seq_len": 128,
+        "enabled_modalities": ["text", "audio"],
+        "num_speakers": 300
+    },
+    "data_augmentation": {
+        "enable": true,
+        "gaussian_noise_std": 0.005,
+        "feature_dropout_rate": 0.05,
+        "mixup_alpha": 0.1
+    },
+    "model_architecture": {
+        "use_deep_encoder": true,
+        "use_contrastive_loss": true,
+        "contrastive_weight": 0.05,
+        "use_dialogue_context": true,
+        "use_speaker_info": true
+    },
+    "model": {
+        "text": {
+            "pretrained_model": "roberta-base",
+            "feature_dim": 768,
+            "dropout": 0.1,
+            "freeze_bert": false
+        },
+        "audio": {
+            "pretrained_model": "facebook/wav2vec2-base-960h",
+            "feature_dim": 768,
+            "dropout": 0.1,
+            "freeze_encoder": false
+        },
+        "video": {
+            "pretrained_model": "facebook/dino-vitb16",
+            "feature_dim": 768,
+            "dropout": 0.1,
+            "freeze_encoder": false
+        },
+        "fusion": {
+            "hidden_dim": 512,
+            "dropout": 0.15
+        },
+        "output": {
+            "num_classes": 7
+        }
+    },
+    "training": {
+        "epochs": 80,
+        "lr": 2e-5,
+        "weight_decay": 0.01,
+        "gradient_clip_val": 0.5,
+        "scheduler": "cosine",
+        "warmup_ratio": 0.15,
+        "class_weights": true,
+        "focal_loss_gamma": 2.2,
+        "rare_class_boost": true,
+        "label_smoothing": 0.05,
+        "contrastive_temperature": 0.15
+    },
+    "paths": {
+        "checkpoint_dir": "checkpoints",
+        "log_dir": "logs"
+    }
+} 
