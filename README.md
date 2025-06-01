@@ -537,11 +537,11 @@ python scripts/evaluate_end_to_end.py --config configs/config_end_to_end_emotion
 
 ### 训练结果展示
 
-![Screenshot 2025-05-29 at 8.02.05 PM](./images/Screenshot 2025-05-29 at 8.02.05 PM.png)
+![image1](./images/image1.png)
 
-![Screenshot 2025-05-29 at 11.05.56 PM](./images/Screenshot 2025-05-29 at 11.05.56 PM.png)
+![image2](./images/image2.png)
 
-![Screenshot 2025-05-31 at 2.16.56 PM](./images/Screenshot 2025-05-31 at 2.16.56 PM.png)
+![image3](./images/image3.png)
 
 ### 评估结果展示
 
