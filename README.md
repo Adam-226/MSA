@@ -2,7 +2,7 @@
 
 本项目使用**MELD** (Multimodal EmotionLines Dataset) 数据集进行多模态情感分析，实现7类情绪识别（joy, anger, sadness, surprise, fear, disgust, neutral）。
 
-基于高效的多模态融合技术和集成学习策略，在测试集上达到**62.34%的准确率**和**60.67%的F1加权分数**。通过专门情感模型升级，最佳性能可达到**62.57%**。得到的**F1加权分数**高于论文[MELD: A Multimodal Multi-Party Dataset for Emotion Recognition in Conversations](https://arxiv.org/abs/1810.02508)中的**60.25%**，高于论文[Multi-modal emotion recognition  in conversation based on prompt  learning with text-audio fusion  features](https://www.nature.com/articles/s41598-025-89758-8)的DialogueRNN方法(**57.03%**)，MMGCN方法(**58.02%**)，ChatGPT 3-shot(**58.35%**)方法。
+基于高效的多模态融合技术和集成学习策略，在测试集上达到**62.34%的准确率**和**60.67%的F1加权分数**。通过专门情感模型升级，最佳性能可达到**62.57%**。得到的**F1加权分数**高于论文[MELD: A Multimodal Multi-Party Dataset for Emotion Recognition in Conversations](https://arxiv.org/abs/1810.02508)中的**60.25%**，高于论文[Multi-modal emotion recognition  in conversation based on prompt  learning with text-audio fusion  features](https://www.nature.com/articles/s41598-025-89758-8)的DialogueRNN方法(**57.03%**)，MMGCN方法(**58.02%**)，ChatGPT 3-shot(**58.35%**)方法，也高于论文[Quantum-Inspired Interactive Networks for Conversational Sentiment Analysis](Quantum-Inspired Interactive Networks for Conversational Sentiment Analysis)中的QIN模型的57.8%的**F1加权分数**和61.9%的**准确率**。
 
 ## 项目结构
 
@@ -537,11 +537,11 @@ python scripts/evaluate_end_to_end.py --config configs/config_end_to_end_emotion
 
 ### 训练结果展示
 
-![image1](./images/image1.png)
+![Screenshot 2025-05-29 at 8.02.05 PM](./images/Screenshot 2025-05-29 at 8.02.05 PM.png)
 
-![image2](./images/image2.png)
+![Screenshot 2025-05-29 at 11.05.56 PM](./images/Screenshot 2025-05-29 at 11.05.56 PM.png)
 
-![image3](./images/image3.png)
+![Screenshot 2025-05-31 at 2.16.56 PM](./images/Screenshot 2025-05-31 at 2.16.56 PM.png)
 
 ### 评估结果展示
 
