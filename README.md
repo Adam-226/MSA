@@ -20,7 +20,7 @@
 │   ├── preprocess_emotion_model.py # 情感模型特征提取
 │   ├── train_end_to_end.py # 端到端训练脚本
 │   ├── train_ensemble.py   # 集成训练脚本
-│   └── evaluate_ensemble.py # 集成评估脚本
+│   ├── evaluate_ensemble.py # 集成评估脚本
 │   └── evaluate_end_to_end.py # 端到端评估脚本
 ├── logs/                   # 日志文件目录
 ├── data/                   # 数据存放目录
