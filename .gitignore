@@ -77,14 +77,6 @@ dmypy.json
 # Pyre type checker
 .pyre/
 
-# Project specific
-logs/
-data/processed/
-data/MELD.Raw/
-checkpoints/
-models/
-*.log
-
 # IDE
 .vscode/
 .idea/
