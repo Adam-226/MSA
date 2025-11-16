@@ -343,7 +343,7 @@ python scripts/evaluate_ensemble.py --ensemble_info checkpoints/ensemble/ensembl
 
 ### 5. 情感模型升级
 
-将标准的 `roberta-base` 升级为专门的情感分析模型`twitter-roberta-base-emotion`：
+将标准的 `roberta-base` 换为专门的情感分析模型`twitter-roberta-base-emotion`：
 
 #### 快速开始
 ```bash
