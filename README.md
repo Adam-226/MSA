@@ -251,8 +251,6 @@ python src/utils/evaluate_model.py --checkpoint checkpoints/BiModalFusionModel_9
 
 通过训练多个不同随机种子的模型并进行投票能进一步提升模型性能。
 
-#### 集成学习最佳实践
-
 **建议的集成配置**：
 1. **模型数量**: 5个模型（经验证最优）
 2. **随机种子**: 999, 42, 123, 456, 789
