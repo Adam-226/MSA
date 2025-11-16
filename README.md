@@ -341,25 +341,9 @@ python scripts/evaluate_ensemble.py --ensemble_info checkpoints/ensemble/ensembl
 python scripts/evaluate_ensemble.py --ensemble_info checkpoints/ensemble/ensemble_info.json --method weighted_voting
 ```
 
-**注意**: 完整的集成训练需要8-12小时，请确保有足够的时间和计算资源。
+### 5. 情感模型升级
 
-## 性能表现
-
-### 方法对比表现
-
-| 方法 | 测试准确率 | F1-Weighted | 改进说明 |
-|------|------------|-------------|----------|
-| 基础双模态 | 60.69% | 58.95% | 标准RoBERTa + Wav2Vec2 |
-| **情感模型升级** | **62.11%** | **60.67%** | cardiffnlp/twitter-roberta-base-emotion |
-| 集成模型 (5模型投票) | **62.34%** | **59.26%** | 多随机种子硬投票集成 |
-| 最佳随机种子 | **61.19%** | **60.32%** | 最佳随机种子999 |
-| 端到端训练 | 60.54% | 60.03% | 在小数据集上出现了过拟合 |
-
-## 🚀 高级功能
-
-### 情感模型升级
-
-将标准的 `roberta-base` 升级为专门的情感分析模型：
+将标准的 `roberta-base` 升级为专门的情感分析模型`twitter-roberta-base-emotion`：
 
 #### 快速开始
 ```bash
@@ -388,15 +372,9 @@ python src/utils/evaluate_model.py --checkpoint checkpoints/BiModalEmotionModel_
 python src/utils/evaluate_model.py --checkpoint checkpoints/BiModalEmotionModel_999/best_model.pth --output_dir results/emotion_model/
 ```
 
-#### 关键改进
-- **文本模型**: `roberta-base` → `cardiffnlp/twitter-roberta-base-emotion`
-- **专门训练**: 在5800万推特和情感识别任务上预训练，达到79.3%情感识别准确率
-- **简化架构**: 暂时关闭DialogueRNN，专注于基础模型优化
-- **实际提升**: 从60.69%提升到**62.11%** (+1.42%)
+### 6. 端到端训练
 
-### 端到端训练
-
-更强大的端到端训练方法，直接处理原始文本进行完全微调：
+端到端训练方法，直接处理原始文本进行完全微调：
 
 #### 快速开始  
 ```bash
@@ -422,16 +400,27 @@ python scripts/evaluate_end_to_end.py --config configs/config_end_to_end_emotion
 python scripts/evaluate_end_to_end.py --config configs/config_end_to_end_emotion.json --checkpoint checkpoints/EndToEndEmotionModel_42/best_model.pth --save_predictions
 ```
 
-⚠️ **重要提示**: 端到端模型使用不同的架构(`EndToEndMultiModalModel`)，无法通过标准的`main.py test`命令评估，必须使用专门的`scripts/evaluate_end_to_end.py`脚本。
+**重要提示**: 端到端模型使用不同的架构(`EndToEndMultiModalModel`)，无法通过标准的`main.py test`命令评估，必须使用专门的`scripts/evaluate_end_to_end.py`脚本。
 
 #### 核心特性
 - **端到端文本处理**: 使用 `j-hartmann/emotion-english-distilroberta-base`
 - **高级融合架构**: 多层交叉注意力机制 + 动态权重学习
 - **优化训练策略**: 差异化学习率、梯度累积、余弦重启调度
-- **实际性能**: 60.54% (验证过拟合问题)
 
 #### 注意事项
-⚠️ **数据规模限制**: 根据实际测试，端到端方法在MELD数据集(9989样本)上出现过拟合，建议优先使用情感模型升级方案。
+**数据规模限制**: 根据实际测试，端到端方法在MELD数据集(9989样本)上出现过拟合，建议优先使用情感模型升级方案。
+
+## 性能表现
+
+### 方法对比表现
+
+| 方法 | 测试准确率 | F1-Weighted | 改进说明 |
+|------|------------|-------------|----------|
+| 基础双模态 | 60.69% | 58.95% | 标准RoBERTa + Wav2Vec2 |
+| **情感模型升级** | **62.11%** | **60.67%** | cardiffnlp/twitter-roberta-base-emotion |
+| 集成模型 (5模型投票) | **62.34%** | **59.26%** | 多随机种子硬投票集成 |
+| 最佳随机种子 | **61.19%** | **60.32%** | 最佳随机种子999 |
+| 端到端训练 | 60.54% | 60.03% | 在小数据集上出现了过拟合 |
 
 ## 相关结果展示
 
