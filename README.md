@@ -1,3 +1,5 @@
+
+
 # MELD数据集多模态情感分析
 
 本项目使用**MELD** (Multimodal EmotionLines Dataset) 数据集进行多模态情感分析，实现7类情绪识别（joy, anger, sadness, surprise, fear, disgust, neutral）。
@@ -91,7 +93,6 @@ MELD.Raw/
 ├── test_sent_emo.csv          # 测试集情感标签
 ├── test.tar.gz                # 测试集压缩包
 ├── train_sent_emo.csv         # 训练集情感标签
-├── train_splits               # 训练集数据
 └── train.tar.gz               # 训练集压缩包
 ```
 
@@ -238,13 +239,13 @@ python src/utils/evaluate_model.py --checkpoint checkpoints/FusionModel_999/best
 **评估双模态模型：**
 ```bash
 # 评估测试集
-python src/utils/evaluate_model.py --checkpoint checkpoints/BiModalFusionModel_999/best_model.pth
+python src/utils/evaluate_model.py --config configs/config_bimodal.json --checkpoint checkpoints/BiModalFusionModel_999/best_model.pth
 
 # 评估验证集
-python src/utils/evaluate_model.py --checkpoint checkpoints/BiModalFusionModel_999/best_model.pth --split dev
+python src/utils/evaluate_model.py --config configs/config_bimodal.json --checkpoint checkpoints/BiModalFusionModel_999/best_model.pth --split dev
 
 # 指定输出目录
-python src/utils/evaluate_model.py --checkpoint checkpoints/BiModalFusionModel_999/best_model.pth --output_dir results/
+python src/utils/evaluate_model.py --config configs/config_bimodal.json --checkpoint checkpoints/BiModalFusionModel_999/best_model.pth --output_dir results/
 ```
 
 ### 4. 集成学习
